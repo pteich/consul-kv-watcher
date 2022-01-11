@@ -34,12 +34,11 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 		AllowStale:        true,
 		RequireConsistent: false,
 		UseCache:          true,
+		WaitTime:          w.waitTime,
 	}
 
 	go func() {
-		defer func() {
-			close(out)
-		}()
+		defer close(out)
 
 		for {
 			select {
@@ -77,12 +76,11 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 		AllowStale:        true,
 		RequireConsistent: false,
 		UseCache:          true,
+		WaitTime:          w.waitTime,
 	}
 
 	go func() {
-		defer func() {
-			close(out)
-		}()
+		defer close(out)
 
 		for {
 			select {

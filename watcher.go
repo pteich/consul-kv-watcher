@@ -29,6 +29,7 @@ func New(consulClient *consul.Client, waitTime time.Duration, retryTime time.Dur
 // WatchTree watches for changes to a directory and emit key value pairs
 func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVPairs, error) {
 	out := make(chan consul.KVPairs)
+	kv := w.consul.KV()
 
 	opts := &consul.QueryOptions{
 		AllowStale:        true,
@@ -47,12 +48,16 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 			default:
 			}
 
-			kvPairs, meta, err := w.consul.KV().List(path, opts.WithContext(ctx))
+			kvPairs, meta, err := kv.List(path, opts.WithContext(ctx))
 			if err != nil {
 				if consul.IsRetryableError(err) {
 					opts.WaitIndex = 0
-					time.Sleep(w.backoff.NextBackOff())
-					continue
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(w.backoff.NextBackOff()):
+						continue
+					}
 				}
 
 				return
@@ -71,6 +76,7 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 // WatchKey watches for changes to a key and emits a key value pair
 func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPair, error) {
 	out := make(chan *consul.KVPair)
+	kv := w.consul.KV()
 
 	opts := &consul.QueryOptions{
 		AllowStale:        true,
@@ -89,12 +95,16 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 			default:
 			}
 
-			kvPair, meta, err := w.consul.KV().Get(key, opts.WithContext(ctx))
+			kvPair, meta, err := kv.Get(key, opts.WithContext(ctx))
 			if err != nil {
 				if consul.IsRetryableError(err) {
 					opts.WaitIndex = 0
-					time.Sleep(w.backoff.NextBackOff())
-					continue
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(w.backoff.NextBackOff()):
+						continue
+					}
 				}
 
 				return

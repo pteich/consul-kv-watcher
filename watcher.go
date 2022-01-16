@@ -64,9 +64,10 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 			}
 
 			w.backoff.Reset()
-			out <- kvPairs
-			opts.WaitIndex = meta.LastIndex
-			opts.WaitTime = w.waitTime
+			if opts.WaitIndex != meta.LastIndex {
+				out <- kvPairs
+				opts.WaitIndex = meta.LastIndex
+			}
 		}
 	}()
 
@@ -111,9 +112,10 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 			}
 
 			w.backoff.Reset()
-			out <- kvPair
-			opts.WaitIndex = meta.LastIndex
-			opts.WaitTime = w.waitTime
+			if opts.WaitIndex != meta.LastIndex {
+				out <- kvPair
+				opts.WaitIndex = meta.LastIndex
+			}
 		}
 	}()
 

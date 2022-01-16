@@ -8,21 +8,24 @@ import (
 	consul "github.com/hashicorp/consul/api"
 )
 
+// DefaultWaitTime is the maximum wait time allowed by Consul
+const DefaultWaitTime = 10 * time.Minute
+
 // Watcher is a wrapper around the Consul client that watches for changes to a keys and directories
 type Watcher struct {
-	consul   *consul.Client
-	backoff  *backoff.ExponentialBackOff
-	waitTime time.Duration
+	consul       *consul.Client
+	backoff      *backoff.ExponentialBackOff
+	debounceTime time.Duration
 }
 
 // New returns a new Watcher
-func New(consulClient *consul.Client, waitTime time.Duration, retryTime time.Duration) *Watcher {
+func New(consulClient *consul.Client, retryTime time.Duration, debounceTime time.Duration) *Watcher {
 	bf := backoff.NewExponentialBackOff()
 	bf.InitialInterval = retryTime
 	return &Watcher{
-		consul:   consulClient,
-		waitTime: waitTime,
-		backoff:  bf,
+		consul:       consulClient,
+		backoff:      bf,
+		debounceTime: debounceTime,
 	}
 }
 
@@ -30,12 +33,13 @@ func New(consulClient *consul.Client, waitTime time.Duration, retryTime time.Dur
 func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVPairs, error) {
 	out := make(chan consul.KVPairs)
 	kv := w.consul.KV()
+	var debounceTimer *time.Timer
 
 	opts := &consul.QueryOptions{
 		AllowStale:        true,
 		RequireConsistent: false,
 		UseCache:          true,
-		WaitTime:          w.waitTime,
+		WaitTime:          DefaultWaitTime,
 	}
 
 	go func() {
@@ -65,7 +69,12 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 
 			w.backoff.Reset()
 			if opts.WaitIndex != meta.LastIndex {
-				out <- kvPairs
+				if debounceTimer != nil {
+					debounceTimer.Stop()
+				}
+				debounceTimer = time.AfterFunc(w.debounceTime, func() {
+					out <- kvPairs
+				})
 				opts.WaitIndex = meta.LastIndex
 			}
 		}
@@ -78,12 +87,13 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPair, error) {
 	out := make(chan *consul.KVPair)
 	kv := w.consul.KV()
+	var debounceTimer *time.Timer
 
 	opts := &consul.QueryOptions{
 		AllowStale:        true,
 		RequireConsistent: false,
 		UseCache:          true,
-		WaitTime:          w.waitTime,
+		WaitTime:          DefaultWaitTime,
 	}
 
 	go func() {
@@ -113,7 +123,12 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 
 			w.backoff.Reset()
 			if opts.WaitIndex != meta.LastIndex {
-				out <- kvPair
+				if debounceTimer != nil {
+					debounceTimer.Stop()
+				}
+				debounceTimer = time.AfterFunc(w.debounceTime, func() {
+					out <- kvPair
+				})
 				opts.WaitIndex = meta.LastIndex
 			}
 		}

@@ -72,9 +72,13 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
-				debounceTimer = time.AfterFunc(w.debounceTime, func() {
+				if opts.WaitIndex <= 0 {
 					out <- kvPairs
-				})
+				} else {
+					debounceTimer = time.AfterFunc(w.debounceTime, func() {
+						out <- kvPairs
+					})
+				}
 				opts.WaitIndex = meta.LastIndex
 			}
 		}
@@ -121,14 +125,21 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 				return
 			}
 
+			// reset backoff after successful load
 			w.backoff.Reset()
 			if opts.WaitIndex != meta.LastIndex {
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
-				debounceTimer = time.AfterFunc(w.debounceTime, func() {
+
+				// don't debounce and wait if we start fresh without wait index
+				if opts.WaitIndex <= 0 {
 					out <- kvPair
-				})
+				} else {
+					debounceTimer = time.AfterFunc(w.debounceTime, func() {
+						out <- kvPair
+					})
+				}
 				opts.WaitIndex = meta.LastIndex
 			}
 		}

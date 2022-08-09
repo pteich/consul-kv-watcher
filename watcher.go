@@ -34,6 +34,7 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 	out := make(chan consul.KVPairs)
 	kv := w.consul.KV()
 	var debounceTimer *time.Timer
+	var debounceStart time.Time
 
 	opts := &consul.QueryOptions{
 		AllowStale:        true,
@@ -72,11 +73,14 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
-				if opts.WaitIndex <= 0 {
+				if opts.WaitIndex <= 0 ||
+					(!debounceStart.IsZero() && time.Since(debounceStart) > 2*w.debounceTime) {
 					out <- kvPairs
 				} else {
+					debounceStart = time.Now()
 					debounceTimer = time.AfterFunc(w.debounceTime, func() {
 						out <- kvPairs
+						debounceStart = time.Time{}
 					})
 				}
 				opts.WaitIndex = meta.LastIndex
@@ -91,6 +95,7 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPair, error) {
 	out := make(chan *consul.KVPair)
 	kv := w.consul.KV()
+	var debounceStart time.Time
 	var debounceTimer *time.Timer
 
 	opts := &consul.QueryOptions{
@@ -133,11 +138,14 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 				}
 
 				// don't debounce and wait if we start fresh without wait index
-				if opts.WaitIndex <= 0 {
+				if opts.WaitIndex <= 0 ||
+					(!debounceStart.IsZero() && time.Since(debounceStart) > 2*w.debounceTime) {
 					out <- kvPair
 				} else {
+					debounceStart = time.Now()
 					debounceTimer = time.AfterFunc(w.debounceTime, func() {
 						out <- kvPair
+						debounceStart = time.Time{}
 					})
 				}
 				opts.WaitIndex = meta.LastIndex

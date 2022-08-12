@@ -76,8 +76,11 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 				if opts.WaitIndex <= 0 ||
 					(!debounceStart.IsZero() && time.Since(debounceStart) > 2*w.debounceTime) {
 					out <- kvPairs
+					debounceStart = time.Time{}
 				} else {
-					debounceStart = time.Now()
+					if debounceStart.IsZero() {
+						debounceStart = time.Now()
+					}
 					debounceTimer = time.AfterFunc(w.debounceTime, func() {
 						out <- kvPairs
 						debounceStart = time.Time{}
@@ -141,8 +144,12 @@ func (w *Watcher) WatchKey(ctx context.Context, key string) (<-chan *consul.KVPa
 				if opts.WaitIndex <= 0 ||
 					(!debounceStart.IsZero() && time.Since(debounceStart) > 2*w.debounceTime) {
 					out <- kvPair
+					debounceStart = time.Time{}
 				} else {
-					debounceStart = time.Now()
+					if debounceStart.IsZero() {
+						debounceStart = time.Now()
+					}
+
 					debounceTimer = time.AfterFunc(w.debounceTime, func() {
 						out <- kvPair
 						debounceStart = time.Time{}

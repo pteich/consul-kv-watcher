@@ -1,9 +1,9 @@
 module github.com/pteich/consul-kv-watcher
 
-go 1.17
+go 1.18
 
 require (
-	github.com/cenkalti/backoff/v4 v4.1.3
+	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/hashicorp/consul/api v1.13.1
 )
 

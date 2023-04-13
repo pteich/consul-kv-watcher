@@ -82,7 +82,11 @@ func (w *Watcher) WatchTree(ctx context.Context, path string) (<-chan consul.KVP
 						debounceStart = time.Now()
 					}
 					debounceTimer = time.AfterFunc(w.debounceTime, func() {
-						out <- kvPairs
+						select {
+						case out <- kvPairs:
+						case <-ctx.Done():
+							return
+						}
 						debounceStart = time.Time{}
 					})
 				}
